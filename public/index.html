@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CheckDigit: free IBAN, VAT, BIC, EAN/UPC and ISBN validator</title>
+<meta name="description" content="Paste an IBAN, BIC, EU VAT number, EAN/UPC/GTIN or ISBN. CheckDigit detects the type and checks its format and check digit, with the reason when it fails.">
+<link rel="stylesheet" href="/style.css">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+<link rel="service-desc" type="application/json" href="/openapi.json" title="OpenAPI 3.1">
+</head>
+<body>
+<!--STAGING-->
+<header>
+  <a class="brand" href="/">CheckDigit</a>
+  <nav><a href="/">Checker</a><a href="/docs">API docs</a></nav>
+</header>
+<main>
+  <h1>Check any identifier's format and check digit</h1>
+  <p class="lead">Paste an IBAN, BIC, EU VAT number, EAN/UPC/GTIN or ISBN. CheckDigit works out which it is and tells you whether the format and check digit are correct, and why not if they aren't.</p>
+
+  <form class="check" id="form" autocomplete="off">
+    <input id="code" name="code" aria-label="Code to check" maxlength="64" placeholder="e.g. DE89 3704 0044 0532 0130 00" spellcheck="false" autocapitalize="characters" required>
+    <button id="go" type="submit">Check</button>
+  </form>
+  <div class="examples">Try:
+    <button type="button" data-code="DE89 3704 0044 0532 0130 00">IBAN</button>
+    <button type="button" data-code="DEUTDEFF500">BIC</button>
+    <button type="button" data-code="ATU13585627">VAT</button>
+    <button type="button" data-code="4006381333931">EAN-13</button>
+    <button type="button" data-code="036000291452">UPC-A</button>
+    <button type="button" data-code="978-0-306-40615-7">ISBN-13</button>
+    <button type="button" data-code="0-306-40615-X">bad ISBN-10</button>
+  </div>
+
+  <div id="result" aria-live="polite"></div>
+
+  <div class="disclaimer" role="note">
+    <strong>This is a format check, not a compliance check.</strong>
+    A valid format or checksum does not prove that a bank account, VAT registration, bank or product exists, is active, or belongs to anyone in particular. For VAT registration status use the EU's VIES service; for payments, rely on your bank's own checks.
+  </div>
+
+  <h2>What it checks</h2>
+  <ul class="features">
+    <li><strong>IBAN</strong>: ISO 13616 mod-97 check digits plus the country's length and BBAN layout from the SWIFT IBAN Registry (89 countries).</li>
+    <li><strong>BIC / SWIFT code</strong>: ISO 9362 structure and country code. No bank directory lookup.</li>
+    <li><strong>EU VAT number</strong>: format and check digit for all 27 member states and XI (Northern Ireland), offline. VIES is not queried.</li>
+    <li><strong>GTIN / EAN / UPC</strong>: EAN-8, UPC-A, EAN-13 and GTIN-14 with the GS1 check digit, plus UPC-A to EAN-13 conversion. UPC-E (8-digit zero-suppressed) is not supported.</li>
+    <li><strong>ISBN</strong>: ISBN-10 (mod 11) and ISBN-13 check digits, with ISBN-10 to ISBN-13 conversion and back.</li>
+  </ul>
+  <p>When a check fails you get the reason, for example <code>checksum fails, expected 7</code> or <code>length is 21, expected 22 for DE</code>.</p>
+
+  <h2>Use it from code</h2>
+  <pre><code>curl -X POST https://<span id="host">checkdigit</span>/v1/detect \
+  -H "Content-Type: application/json" \
+  -d '{"code": "DE89 3704 0044 0532 0130 00"}'</code></pre>
+  <p>POST keeps the code out of the URL. For non-sensitive codes, <code>GET /v1/detect/{code}</code> works too.</p>
+  <p>Every endpoint is listed in the <a href="/docs">API docs</a>. Light use works without an API key, with a per-IP rate limit.</p>
+
+  <section id="agents"><h2>For AI agents (MCP)</h2>
+  <p>CheckDigit is also a remote <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Most MCP clients accept this config; some use a different format (for example, VS Code uses a <code>servers</code> key). Clients with a settings screen just need the URL <code id="mcp-url">https://checkdigit.mike-tusa.workers.dev/mcp</code>.</p>
+  <pre><code id="mcp-config">{ "mcpServers": { "checkdigit": { "type": "http", "url": "https://checkdigit.mike-tusa.workers.dev/mcp" } } }</code></pre>
+  <p class="small">Machine-readable docs: <a href="/llms.txt">llms.txt</a> &middot; <a href="/openapi.json">OpenAPI 3.1 spec</a></p></section>
+
+  <h2 id="privacy">Privacy</h2>
+  <p>Codes are checked in memory and returned to you. They are not stored or logged. CheckDigit keeps request counts, plus a salted, daily-rotating hash of your IP address (kept up to 9 days) to count unique visitors per day; your IP address itself is not stored. This checker sends the code in the request body, not the URL.</p>
+</main>
+<footer>
+  CheckDigit &middot; <a href="/docs">API docs</a> &middot; Format and checksum validation only.
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>

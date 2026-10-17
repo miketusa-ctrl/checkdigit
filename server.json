@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.workers.mike-tusa.checkdigit/checkdigit",
+  "title": "CheckDigit",
+  "description": "Offline check-digit validation for IBAN, BIC, EU VAT, GTIN/EAN/UPC and ISBN. Format check only.",
+  "version": "0.2.2",
+  "websiteUrl": "https://checkdigit.mike-tusa.workers.dev/",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://checkdigit.mike-tusa.workers.dev/mcp",
+      "headers": [
+        { "name": "Authorization", "description": "Optional. 'Bearer <key>' for higher limits. Works without a key.", "isRequired": false, "isSecret": true }
+      ]
+    }
+  ]
+}

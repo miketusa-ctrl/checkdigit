@@ -1,0 +1,15 @@
+{
+  "name": "checkdigit",
+  "version": "0.2.2",
+  "private": true,
+  "description": "IBAN, BIC, EU VAT, GTIN/EAN/UPC and ISBN format + check-digit validation API (Cloudflare Worker)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

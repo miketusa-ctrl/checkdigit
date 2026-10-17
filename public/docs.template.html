@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CheckDigit API docs: IBAN, BIC, EU VAT, GTIN/EAN/UPC and ISBN validation</title>
+<meta name="description" content="CheckDigit API reference: endpoints, examples, limits and error codes for IBAN, BIC, EU VAT, GTIN/EAN/UPC and ISBN format and check-digit validation.">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<!--STAGING-->
+<header>
+  <a class="brand" href="/">CheckDigit</a>
+  <nav><a href="/">Checker</a><a href="/docs">API docs</a></nav>
+</header>
+<main>
+  <h1>API docs</h1>
+  <p class="lead">A JSON API for checking the format and check digits of IBANs, BICs, EU VAT numbers, GTIN/EAN/UPC codes and ISBNs. Base URL: <code id="base">https://checkdigit</code></p>
+
+  <div class="disclaimer" role="note">
+    <strong>This is a format check, not a compliance check.</strong>
+    A valid format or checksum does not prove that a bank account, VAT registration, bank (BIC) or product exists, is active, or belongs to anyone in particular. Don't use CheckDigit as your only KYC, AML, VAT-compliance or payment-verification control. VAT registration status comes from the EU's VIES service, which CheckDigit does not query.
+  </div>
+
+  <h2>Endpoints</h2>
+  <table class="grid">
+    <tr><th>Method and path</th><th>What it does</th><th>Key</th></tr>
+    <tr><td><code>GET /v1/iban/{iban}</code></td><td>IBAN: country, length, BBAN layout, mod-97 check digits</td><td>optional</td></tr>
+    <tr><td><code>GET /v1/bic/{bic}</code></td><td>BIC / SWIFT code: structure and country (no bank directory)</td><td>optional</td></tr>
+    <tr><td><code>GET /v1/vat/{number}</code></td><td>EU VAT number: format and check digit, offline (no VIES)</td><td>optional</td></tr>
+    <tr><td><code>GET /v1/gtin/{code}</code></td><td>EAN-8, UPC-A, EAN-13, GTIN-14 and ISBN-10: check digit and conversions</td><td>optional</td></tr>
+    <tr><td><code>GET /v1/isbn/{code}</code></td><td>ISBN-10 or ISBN-13: check digit and ISBN-10/13 conversion</td><td>optional</td></tr>
+    <tr><td><code>GET /v1/detect/{code}</code></td><td>Detects the type, then validates it</td><td>optional</td></tr>
+    <tr><td><code>POST /v1/{type}</code></td><td>Same as the GET endpoints above (<code>iban</code>, <code>bic</code>, <code>vat</code>, <code>gtin</code>, <code>isbn</code>, <code>detect</code>) with the code in a JSON body <code>{"code": "..."}</code> instead of the URL. Recommended for IBANs and VAT numbers.</td><td>optional</td></tr>
+    <tr><td><code>POST /v1/batch</code></td><td>Up to 500 mixed codes in one request</td><td>Pro key</td></tr>
+    <tr><td><code>GET /v1/meta</code></td><td>Version, supported countries and formats, limits</td><td>optional</td></tr>
+  </table>
+  <p>Send the code in the URL path (GET) or in a JSON body (POST, see <a href="#post">below</a>). Spaces, hyphens and dots are ignored and letters are upper-cased, so <code>de89 3704 0044 0532 0130 00</code> works. A leading label is ignored too: <code>IBAN:</code>, <code>VAT:</code>, <code>BIC:</code>, <code>ISBN</code> / <code>ISBN-13:</code> (on <code>/v1/detect</code> and on the matching endpoint). Percent-encode codes in URLs (spaces as <code>%20</code>). Codes can be at most 64 characters.</p>
+  <p>Every validation returns HTTP 200 with <code>"valid": true</code> or <code>"valid": false</code>. When it is false, <code>reason</code> explains why, for example <code>"checksum fails, expected 7"</code>. Other HTTP status codes mean the request itself could not be processed (see <a href="#errors">Errors</a>).</p>
+
+  <div class="endpoint" id="post">
+    <h3><span class="method post">POST</span><code>/v1/{type}</code> &nbsp;(<code>iban</code>, <code>bic</code>, <code>vat</code>, <code>gtin</code>, <code>isbn</code>, <code>detect</code>)</h3>
+    <p>Every single-code endpoint also accepts <code>POST</code> with the code in a JSON body. The response is the same as for GET. <strong>Use POST for IBANs, VAT numbers and anything else you'd rather not have in URLs</strong>: a URL path can end up in request logs, proxies and browser history, a request body normally doesn't. No API key is needed; the limits, quotas and 32 KB body cap are the same as for GET. The free checker on the home page uses <code>POST /v1/detect</code>.</p>
+<pre><code>curl -X POST https://<span class="h">checkdigit</span>/v1/iban \
+  -H "Content-Type: application/json" \
+  -d '{"code": "DE89 3704 0044 0532 0130 00"}'</code></pre>
+    <p>Errors: no or empty <code>code</code> gives <code>400 missing_code</code>, a body that isn't JSON gives <code>400 invalid_json</code>, and a code in the URL as well (<code>POST /v1/iban/DE89...</code>) gives <code>400 code_in_url</code>.</p>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/iban/{iban}</code></h3>
+    <p>Checks the country code against the SWIFT IBAN Registry (89 countries), the length and BBAN layout for that country, and the ISO 13616 mod-97 check digits. Returns <code>valid, country, bban, check_digits, formatted</code> plus the bank code and SEPA flag. National check digits inside the BBAN are not verified in this version.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/iban/DE89370400440532013000</code></pre>
+<pre><code>{{example:iban:DE89370400440532013000}}</code></pre>
+    <p>An invalid IBAN:</p>
+<pre><code>{{example:iban:DE89370400440532013001}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/bic/{bic}</code></h3>
+    <p>Checks the ISO 9362 structure (4-character party prefix, ISO 3166 country code, 2-character location code, optional 3-character branch code). It flags test BICs (location code ending in 0). It does not look up banks or confirm that a BIC is registered.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/bic/DEUTDEFF500</code></pre>
+<pre><code>{{example:bic:DEUTDEFF500}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/vat/{number}</code></h3>
+    <p>Include the country prefix: AT, BE, BG, CY, CZ, DE, DK, EE, EL (Greece; GR is accepted and mapped to EL), ES, FI, FR, HR, HU, IE, IT, LT, LU, LV, MT, NL, PL, PT, RO, SE, SI, SK, plus XI (Northern Ireland). The check runs offline using each country's published check-digit rule. <strong>VIES is not queried</strong>, so the response says nothing about whether the number is registered or active (<code>"vies_checked": false</code>).</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/vat/ATU13585627</code></pre>
+<pre><code>{{example:vat:ATU13585627}}</code></pre>
+<pre><code>{{example:vat:DE136695977}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/gtin/{code}</code></h3>
+    <p>EAN-8, UPC-A (12 digits), EAN-13 and GTIN-14 with the GS1 mod-10 check digit. A 10-character ISBN-10 is accepted too. The response includes the GTIN-14 form, UPC-A to EAN-13 conversion, the ISBN-10/ISBN-13 forms for 978/979 codes, and a note for special GS1 prefixes (for example restricted-circulation or coupon ranges). <strong>UPC-E</strong> (the 8-digit zero-suppressed UPC) is not supported in this version: an 8-digit code is always checked as EAN-8.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/gtin/036000291452</code></pre>
+<pre><code>{{example:gtin:036000291452}}</code></pre>
+<pre><code>{{example:gtin:4006381333932}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/isbn/{code}</code></h3>
+    <p>ISBN-10 (mod 11, check character 0-9 or X) or ISBN-13 (978/979 prefix, mod 10). Converts ISBN-10 to ISBN-13 and back (979 ISBNs have no ISBN-10 form). Hyphens and an <code>ISBN</code> prefix are ignored. Hyphenation into group/publisher parts is not provided.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/isbn/0-306-40615-2</code></pre>
+<pre><code>{{example:isbn:0-306-40615-2}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/detect/{code}</code></h3>
+    <p>Works out which kind of code it is from its shape, runs the matching validators, and returns the best match. <code>detected_as</code> is the type used and <code>candidates</code> lists every type the shape could fit. If none of them validates, the type where the code had the right shape (only the checksum or a content rule failed) is reported, for example <code>FR40303265046</code> is reported as a French VAT number whose SIREN fails its Luhn check, not as a too-short French IBAN. The free checker on the home page uses the POST form of this endpoint.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/detect/9780306406157</code></pre>
+<pre><code>{{example:detect:9780306406157}}</code></pre>
+<pre><code>{{example:detect:FR40303265046}}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method post">POST</span><code>/v1/batch</code></h3>
+    <p>Validate up to <strong>500</strong> codes in one request, for example when cleaning a product feed. Requires a <strong>Pro</strong> API key. Each code counts as one call against the monthly quota. Items are either strings (auto-detected) or objects with a <code>type</code> of <code>auto</code>, <code>iban</code>, <code>bic</code>, <code>vat</code>, <code>gtin</code> or <code>isbn</code>. Results come back in the same order. The body can be at most 32 KB.</p>
+<pre><code>curl -X POST https://<span class="h">checkdigit</span>/v1/batch \
+  -H "Authorization: Bearer cd_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"codes": ["DE89370400440532013000", {"code": "4006381333931", "type": "gtin"}, "FR40303265046"]}'</code></pre>
+<pre><code>{{batch}}</code></pre>
+    <p>More than 500 codes gives <code>400 batch_too_large</code>. A body over 32 KB gives <code>413 payload_too_large</code>.</p>
+  </div>
+
+  <div class="endpoint">
+    <h3><span class="method">GET</span><code>/v1/meta</code></h3>
+    <p>Service version and build (git commit), supported IBAN and VAT countries, formats and current limits. It doesn't count against your quota.</p>
+<pre><code>curl https://<span class="h">checkdigit</span>/v1/meta</code></pre>
+  </div>
+
+  <h2 id="auth">API keys and limits</h2>
+  <p>Send a key as <code>Authorization: Bearer cd_live_...</code> or <code>X-Api-Key: cd_live_...</code>. Requests without a key use the anonymous tier. A key that isn't recognised gives <code>401 invalid_api_key</code>; it never silently falls back to the anonymous tier.</p>
+  <table class="grid">
+    <tr><th>Tier</th><th>Monthly calls</th><th>Rate limit</th><th>Batch</th></tr>
+    <tr><td>Anonymous (no key)</td><td>no monthly allowance; shared daily capacity</td><td>{{anonPerMin}} requests/min per IP</td><td>no</td></tr>
+    <tr><td>Free key</td><td>{{freePerMonth}}</td><td>{{keyPerMin}} requests/min per key</td><td>no</td></tr>
+    <tr><td>Pro key</td><td>{{proPerMonth}}</td><td>{{keyPerMin}} requests/min per key</td><td>yes, up to 500 codes per request</td></tr>
+  </table>
+  <p>Monthly quotas reset at 00:00 UTC on the 1st. Responses to keyed requests carry <code>X-CheckDigit-Plan</code>, <code>X-Quota-Limit</code> and <code>X-Quota-Remaining</code>. A global daily capacity limit protects the service; if it's reached, requests get <code>429 daily_capacity_reached</code> until 00:00 UTC, and part of the capacity is kept for key holders.</p>
+  <p><strong>Getting a key:</strong> API keys are not self-serve yet and the Pro plan is not on sale. During this preview, keys are issued by the operator on request; the anonymous tier and the POST endpoints need no key.</p>
+
+  <h2 id="errors">Errors</h2>
+  <p>Errors use the shape <code>{"error": {"code": "...", "message": "..."}}</code>.</p>
+  <table class="grid">
+    <tr><th>Status</th><th>code</th><th>When</th></tr>
+    <tr><td>400</td><td><code>missing_code</code>, <code>input_too_long</code>, <code>bad_encoding</code>, <code>code_in_url</code></td><td>No code in the path or body, code over 64 characters, broken percent-encoding, or a POST with the code in the URL</td></tr>
+    <tr><td>400</td><td><code>invalid_json</code>, <code>invalid_batch</code>, <code>empty_batch</code>, <code>batch_too_large</code></td><td>Body is not JSON, or batch problems (no <code>codes</code> array, empty, more than 500 codes)</td></tr>
+    <tr><td>401</td><td><code>invalid_api_key</code>, <code>api_key_required</code></td><td>Unknown key, or batch without a key</td></tr>
+    <tr><td>403</td><td><code>paid_plan_required</code></td><td>Batch with a free key</td></tr>
+    <tr><td>404 / 405</td><td><code>not_found</code>, <code>method_not_allowed</code></td><td>Unknown path or wrong method</td></tr>
+    <tr><td>413</td><td><code>payload_too_large</code></td><td>POST body over 32 KB (32,768 bytes)</td></tr>
+    <tr><td>429</td><td><code>rate_limited</code></td><td>Per-minute limit reached (<code>Retry-After: 60</code>), including too many new or unrecognised API keys from one IP</td></tr>
+    <tr><td>429</td><td><code>monthly_quota_exceeded</code></td><td>Key's monthly calls used up, or a batch is larger than what's left</td></tr>
+    <tr><td>429</td><td><code>daily_capacity_reached</code></td><td>Global daily capacity reached (resets 00:00 UTC)</td></tr>
+    <tr><td>503</td><td><code>storage_unavailable</code></td><td>Key lookup temporarily unavailable</td></tr>
+  </table>
+
+  <h2 id="privacy">Privacy</h2>
+  <p>Codes are checked in memory and returned only to you. CheckDigit does not store or log them; it keeps request counts (per key per month, and a global daily total), plus a salted, daily-rotating hash of the visitor IP address (kept up to 9 days) to count unique visitors per day; no IP address is stored. CheckDigit makes no outbound requests. GET puts the code in the URL, which HTTP clients, proxies, CDN request logs and browsers may record; for IBANs, VAT numbers or anything else sensitive, use the <a href="#post">POST form</a> (<code>POST /v1/iban</code>, <code>/v1/vat</code>, <code>/v1/detect</code> and so on, with <code>{"code": "..."}</code>). It's free and needs no API key.</p>
+
+  <h2>Sources</h2>
+  <ul>
+    <li>IBAN: ISO 13616 and the SWIFT IBAN Registry (country lengths, BBAN structures and example IBANs).</li>
+    <li>GTIN/EAN/UPC: GS1 General Specifications check digit calculation (mod 10, weights 3 and 1).</li>
+    <li>ISBN: ISO 2108 and the ISBN Users' Manual (International ISBN Agency).</li>
+    <li>VAT: the VIES number formats and each member state's published check-digit rule.</li>
+    <li>BIC: ISO 9362 structure; country codes from ISO 3166-1.</li>
+  </ul>
+</main>
+<footer>
+  CheckDigit &middot; <a href="/">Checker</a> &middot; Format and checksum validation only. Not a compliance check.
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>

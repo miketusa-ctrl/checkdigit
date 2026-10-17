@@ -1,0 +1,92 @@
+(function () {
+  'use strict';
+  var form = document.getElementById('form');
+  var input = document.getElementById('code');
+  var btn = document.getElementById('go');
+  var out = document.getElementById('result');
+  Array.prototype.forEach.call(document.querySelectorAll('#host, .h'), function (n) { n.textContent = location.host; });
+  var base = document.getElementById('base');
+  if (base) base.textContent = location.origin;
+  var mcp = document.getElementById('mcp-config');
+  var mcpUrl = document.getElementById('mcp-url');
+  if (mcpUrl) mcpUrl.textContent = location.origin + '/mcp';
+  if (mcp) mcp.textContent = JSON.stringify({ mcpServers: { checkdigit: { type: 'http', url: location.origin + '/mcp' } } }, null, 2);
+  if (!form) return; // docs page: only the host placeholders above
+
+  var LABELS = {
+    type: 'Detected type', normalized: 'Normalized', country: 'Country', country_name: 'Country name', format: 'Format',
+    check_digits: 'Check digits', expected_check_digits: 'Expected check digits', check_digit: 'Check digit',
+    expected_check_digit: 'Expected check digit', expected_check: 'Expected check', bban: 'BBAN', bank_code: 'Bank code',
+    formatted: 'Print format', sepa: 'SEPA country', expected_length: 'Expected length', number: 'Number',
+    expected_format: 'Expected format', isbn10: 'ISBN-10', isbn13: 'ISBN-13', ean13: 'EAN-13', upc_a: 'UPC-A',
+    gtin14: 'GTIN-14', indicator_digit: 'Indicator digit', prefix_note: 'Prefix', location_code: 'Location code',
+    branch_code: 'Branch code', primary_office: 'Primary office', test_bic: 'Test BIC', bic8: 'BIC (8)', bic11: 'BIC (11)',
+    checksum: 'Checksum', vies_checked: 'VIES checked', note: 'Note', notes: 'Notes'
+  };
+  var TYPE_NAMES = { iban: 'IBAN', bic: 'BIC', vat: 'EU VAT number', gtin: 'GTIN / EAN / UPC', isbn: 'ISBN' };
+  var SKIP = { valid: 1, reason: 1, input: 1, detected_as: 1, candidates: 1, electronic: 1 };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function render(r) {
+    out.textContent = '';
+    var box = el('div', 'verdict ' + (r.valid ? 'ok' : 'bad'));
+    var name = r.type ? (TYPE_NAMES[r.type] || r.type) : 'Unknown code';
+    box.appendChild(el('div', 'title', r.valid ? 'Valid ' + name : (r.type ? 'Invalid ' + name : 'Not recognised')));
+    if (!r.valid && r.reason) box.appendChild(el('div', 'reason', 'Reason: ' + r.reason));
+    if (r.valid) box.appendChild(el('div', 'reason', 'Format and check digit are correct. This does not prove the ' + (r.type === 'vat' ? 'VAT registration' : r.type === 'iban' ? 'account' : r.type === 'bic' ? 'bank' : 'item') + ' exists.'));
+    var t = el('table', 'kv');
+    Object.keys(r).forEach(function (k) {
+      if (SKIP[k] || r[k] === null || r[k] === undefined) return;
+      var v = r[k];
+      if (k === 'type') v = name;
+      if (Array.isArray(v)) v = v.join('; ');
+      if (typeof v === 'boolean') v = v ? 'yes' : 'no';
+      var tr = el('tr');
+      tr.appendChild(el('th', '', LABELS[k] || k));
+      tr.appendChild(el('td', '', String(v)));
+      t.appendChild(tr);
+    });
+    if (t.childNodes.length) box.appendChild(t);
+    out.appendChild(box);
+  }
+
+  function showError(msg) {
+    out.textContent = '';
+    out.appendChild(el('p', 'error', msg));
+  }
+
+  function check(code) {
+    code = code.trim();
+    if (!code) return;
+    btn.disabled = true;
+    // POST keeps the pasted code (often an IBAN or VAT number) out of the URL, so it never shows up in request
+    // logs, proxies or browser history.
+    fetch('/v1/detect', {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({ code: code }),
+      credentials: 'omit',
+      cache: 'no-store',
+    })
+      .then(function (res) {
+        return res.json().then(function (body) { return { status: res.status, body: body }; });
+      })
+      .then(function (x) {
+        if (x.status === 200) render(x.body);
+        else showError((x.body && x.body.error && x.body.error.message) || ('Request failed (HTTP ' + x.status + ').'));
+      })
+      .catch(function () { showError('Network error. Please try again.'); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); check(input.value); });
+  Array.prototype.forEach.call(document.querySelectorAll('.examples button'), function (b) {
+    b.addEventListener('click', function () { input.value = b.getAttribute('data-code'); check(input.value); });
+  });
+})();
