@@ -5,20 +5,33 @@ Offline check-digit validation for IBAN, BIC, EU VAT, GTIN/EAN/UPC and ISBN. For
 ## Live service
 
 - Web app and API: https://checkdigit.mike-tusa.workers.dev/
-- Pricing and plans: https://checkdigit.mike-tusa.workers.dev/docs
+- Pricing: https://checkdigit.mike-tusa.workers.dev/docs
 - Support: digitalpromohub.support@gmail.com
 
 ## Use it from an AI assistant (MCP)
 
 CheckDigit is a remote MCP server (Streamable HTTP) at `https://checkdigit.mike-tusa.workers.dev/mcp`. Tools: `validate_code`, `get_meta`.
 
-Cursor, Cline and Windsurf accept this config:
+Cursor and Windsurf accept this config:
 
 ```json
 {
   "mcpServers": {
     "checkdigit": {
       "type": "http",
+      "url": "https://checkdigit.mike-tusa.workers.dev/mcp"
+    }
+  }
+}
+```
+
+Cline (MCP Servers > Remote Servers, or `cline_mcp_settings.json`) needs `"type": "streamableHttp"`:
+
+```json
+{
+  "mcpServers": {
+    "checkdigit": {
+      "type": "streamableHttp",
       "url": "https://checkdigit.mike-tusa.workers.dev/mcp"
     }
   }
@@ -33,14 +46,14 @@ The `server.json` file is the [MCP Registry](https://registry.modelcontextprotoc
 
 ## Run your own copy
 
-Requires Node.js 20+ and a Cloudflare account.
+Requires Node.js 22+ and a Cloudflare account.
 
 ```bash
 npm install
-npx wrangler dev        # local dev server
+npx wrangler@4 dev      # local dev server
 ```
 
-`wrangler.toml` is a template: create your own KV namespaces / D1 databases / rate-limit namespaces and replace the `<PLACEHOLDER>` values before `npx wrangler deploy`. Any secrets the Worker reads go in `wrangler secret put` (or `.dev.vars` locally), never in the repo.
+`wrangler.toml` is a template: create your own KV namespaces / D1 databases / rate-limit namespaces and replace the `<PLACEHOLDER>` values before `npx wrangler@4 deploy`. Any secrets the Worker reads go in `wrangler secret put` (or `.dev.vars` locally), never in the repo.
 
 ## License
 
